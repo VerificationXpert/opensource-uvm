@@ -1,0 +1,48 @@
+`verilator_config
+
+// ---------------------------------------------------------------------------
+// Lint waivers scoped to the UVM library only.
+//
+// The original flow reached for a blanket `-Wno-lint -Wno-style` on the whole
+// command line.  That silences UVM's warnings, but it also silences them for
+// the DUT and the testbench, which is exactly where a commercial flow wants
+// lint to stay loud.  Verilator's .vlt configuration files let the waivers be
+// attached to the UVM source tree by path instead, so user code keeps full
+// lint coverage.
+//
+// The `-file "*/uvm-core/src/*"` and `*/uvm/src/*` globs cover both UVM
+// checkouts the flow can use (see UVM_FLAVOR in mk/config.mk).
+// ---------------------------------------------------------------------------
+
+// -- Style ------------------------------------------------------------------
+lint_off -rule DECLFILENAME  -file "*/src/*"
+lint_off -rule VARHIDDEN     -file "*/src/*"
+lint_off -rule EOFNEWLINE    -file "*/src/*"
+lint_off -rule PINCONNECTEMPTY -file "*/src/*"
+
+// -- Reserved words ---------------------------------------------------------
+// UVM predates several SystemVerilog keywords Verilator now recognises
+// (e.g. `randomize`, `local`, `global` used as identifiers in old code).
+lint_off -rule SYMRSVDWORD   -file "*/src/*"
+
+// -- Genuine UVM idioms Verilator flags but which are correct here ----------
+// UVM calls plenty of functions for their side effects and drops the result.
+lint_off -rule IGNOREDRETURN -file "*/src/*"
+// UVM ships constraints Verilator's solver cannot yet honour; they are
+// ignored rather than mis-solved, which is safe for the library's own
+// internal randomisation.
+lint_off -rule CONSTRAINTIGN -file "*/src/*"
+// `#0` is used deliberately by the phasing and objection machinery.
+lint_off -rule ZERODLY       -file "*/src/*"
+// Width mismatches inside the library's own bit-twiddling helpers.
+lint_off -rule WIDTH         -file "*/src/*"
+lint_off -rule WIDTHEXPAND   -file "*/src/*"
+lint_off -rule WIDTHTRUNC    -file "*/src/*"
+// UVM's config/resource database and the TLM ports intentionally shadow and
+// re-declare across the deep parameterised class hierarchy.
+lint_off -rule CASEINCOMPLETE -file "*/src/*"
+lint_off -rule UNSIGNED      -file "*/src/*"
+lint_off -rule CMPCONST      -file "*/src/*"
+lint_off -rule REALCVT       -file "*/src/*"
+lint_off -rule SIDEEFFECT    -file "*/src/*"
+lint_off -rule MISINDENT     -file "*/src/*"

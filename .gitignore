@@ -1,0 +1,15 @@
+# Fetched UVM checkouts (see mk/uvm.mk)
+/.uvm/
+
+# Precompiled shared libraries and their objects (see mk/uvm.mk)
+/.lib/
+
+# Per-testbench build output: verilated C++, objects, binaries, logs, waves
+build/
+*.vcd
+*.fst
+*.log
+
+# Editor / OS noise
+*.swp
+.DS_Store

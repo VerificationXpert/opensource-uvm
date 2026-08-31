@@ -1,0 +1,13 @@
+# Regression list: <testbench> <test> [seed]
+#
+# Run with:  make regress LIST=regress/smoke.list
+# One line per run; blank lines and # comments are ignored.
+
+minimal  base_test            1
+minimal  dpi_smoke_test       1
+
+apb      apb_rw_test          1
+apb      apb_random_test      1
+apb      apb_random_test      2
+apb      apb_reg_test         1
+apb      apb_backdoor_test    1
