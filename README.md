@@ -13,7 +13,7 @@ make iteration practical.
 
 ```sh
 # Verilator 5.04x+ is required; distribution packages are usually too old.
-sudo ./scripts/setup_verilator.sh
+sudo ./uvmake/scripts/setup_verilator.sh
 export PATH=/opt/verilator-5.050/bin:$PATH
 
 make libs                              # fetch UVM, build libvltrt.so + libuvmdpi.so
@@ -27,13 +27,13 @@ make help                              # every target and knob
 
 | Path | Contents |
 |---|---|
-| `mk/` | The build system: `config.mk` (knobs), `uvm.mk` (UVM + shared libraries), `verilator.mk` (verilate/build/run) |
-| `lib/dpi/` | Verilator VPI backend for UVM's HDL backdoor, and the DPI translation unit that replaces upstream `uvm_dpi.cc` |
-| `lib/vlt/` | Lint waivers scoped to the UVM tree, so user code keeps full lint |
+| `uvmake/` | **The build system.** Self-contained and project-agnostic - copy it, submodule it, or install it once. See [uvmake/README.md](uvmake/README.md) |
+| `uvmake/dpi/` | Verilator VPI backend for UVM's HDL backdoor, and the DPI translation unit that replaces upstream `uvm_dpi.cc` |
+| `uvmake/vlt/` | Lint waivers scoped to the UVM tree, so user code keeps full lint |
 | `tb/minimal/` | Toolchain smoke test and the compile-time benchmark |
 | `tb/apb/` | APB3 slave with agent, scoreboard, coverage, RAL, and five tests |
 | `regress/` | Regression lists |
-| `scripts/` | Verilator installation, compile-time benchmarking, the incremental-build mtime fix and its self-test, UVM log pass/fail |
+| `uvmake/scripts/` | Filelist expander, parallel regression runner, Verilator installer, the incremental-build mtime fix, UVM log pass/fail, and self-tests for all of it |
 | `docs/` | [Analysis](docs/ANALYSIS.md) and [compile-time measurements](docs/COMPILE_TIME.md) |
 
 ## The three things this changes
@@ -55,7 +55,7 @@ open-source flows compile with `+define+UVM_NO_DPI` and lose *regular
 expressions* and the *command-line processor* as collateral damage, neither
 of which needs a simulator API at all.
 
-`lib/dpi/uvm_hdl_verilator.c` supplies the missing backend over Verilator's
+`uvmake/dpi/uvm_hdl_verilator.c` supplies the missing backend over Verilator's
 VPI. DPI is on by default; `tb/apb`'s `apb_backdoor_test` does a frontdoor
 write / backdoor read and a backdoor write / frontdoor read against the RTL.
 The one real limitation is that Verilator has no force/release, so
@@ -75,7 +75,7 @@ The incremental case used to be a full 2008-file rebuild at a **0% ccache hit
 rate**, every time, because Verilator rewrites its whole output directory on
 each run even when the contents are byte-identical — which invalidates the
 288 MB precompiled header that `verilated.mk` makes a prerequisite of every
-object. `scripts/preserve_mtimes.sh` fixes that; the details, and an honest
+object. `uvmake/scripts/preserve_mtimes.sh` fixes that; the details, and an honest
 account of why UVM itself *cannot* be precompiled into a `.so` the way a
 commercial simulator does it, are in
 [docs/COMPILE_TIME.md](docs/COMPILE_TIME.md).
@@ -86,7 +86,8 @@ into shared objects once per toolchain.
 
 ## Knobs
 
-All of these work on any target and are documented in `mk/config.mk`:
+All of these work on any target and are documented in
+`uvmake/core/config.mk`:
 
 | Knob | Values | Default | |
 |---|---|---|---|
@@ -110,20 +111,35 @@ make regress LIST=regress/smoke.list UVM_FLAVOR=antmicro UVM_DPI=0
 `tb/<name>/Makefile`:
 
 ```make
-REPO_ROOT := $(abspath $(CURDIR)/../..)
-include $(REPO_ROOT)/mk/config.mk
-include $(REPO_ROOT)/mk/uvm.mk
+PROJECT_ROOT ?= $(abspath $(CURDIR)/../..)
+include $(PROJECT_ROOT)/uvmake.local.mk
+include $(UVMAKE)/uvmake.mk
 
-TB_NAME    := mytb
-TB_TOP     := mytb_top
-TB_SRCS    := $(CURDIR)/rtl/dut.sv $(CURDIR)/tb/mytb_top.sv
-TB_INCDIRS := $(CURDIR)/tb
+TB_NAME     := mytb
+TB_TOP      := mytb_top
+TB_FILELIST := $(CURDIR)/mytb.f
 
-include $(REPO_ROOT)/mk/verilator.mk
+$(uvmake-testbench)
+```
+
+and `tb/<name>/mytb.f`:
+
+```
+-f $PROJECT_ROOT/rtl/rtl.f     // reuse the design's own filelist
++incdir+$TB_DIR
+$TB_DIR/mytb_pkg.sv
+$TB_DIR/mytb_top.sv
 ```
 
 It is picked up by `make list`, `make <name>`, and regression lists
-automatically.
+automatically. Skeletons are in `uvmake/templates/`.
+
+## Using it in another project
+
+`uvmake/` has no dependency on this repository. Copy it or add it as a
+submodule, drop in `uvmake/templates/uvmake.local.mk` and the two makefile
+templates, and you have the same flow. The full variable reference is in
+[uvmake/README.md](uvmake/README.md).
 
 ## Requirements
 
@@ -131,12 +147,13 @@ automatically.
 - **`z3`** (or another SMT solver via `VERILATOR_SOLVER`). Verilator does not
   solve SystemVerilog constraints itself. Without a solver every constrained
   `randomize()` returns 0 and constrained-random tests are meaningless — so
-  `mk/config.mk` checks for it and warns.
+  `uvmake` checks for it and warns.
 - A C++20 compiler (GCC 13 or newer)
 - `ccache` — strongly recommended; the incremental-build numbers depend on it
 - `liblz4-dev`, `libzstd-dev`, `zlib1g-dev` for FST tracing
 
-`scripts/setup_verilator.sh` installs all of these.
+`uvmake/scripts/setup_verilator.sh` installs all of these, and
+`make check-env` reports what was found.
 
 ## Licence
 

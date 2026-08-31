@@ -14,8 +14,12 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# uvmake may be vendored anywhere, so the project it is measuring cannot be
+# inferred from this script's location. Take it from the environment (the
+# 'bench' target exports it) or the working directory.
+PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 TB=minimal
+TB_DIRS_DEFAULT="$PROJECT_ROOT/tb"
 ONLY=""
 
 usage() { sed -n '2,16p' "$0"; exit "${1:-0}"; }
@@ -29,10 +33,10 @@ while getopts ":t:c:h" opt; do
   esac
 done
 
-TB_DIR="$REPO_ROOT/tb/$TB"
+TB_DIR="${TB_DIRS:-$TB_DIRS_DEFAULT}/$TB"
 [[ -d $TB_DIR ]] || { echo "no such testbench: $TB_DIR" >&2; exit 1; }
 
-RESULTS="$REPO_ROOT/build/benchmark.csv"
+RESULTS="$PROJECT_ROOT/build/benchmark.csv"
 mkdir -p "$(dirname "$RESULTS")"
 [[ -f $RESULTS ]] || echo "timestamp,testbench,config,stage,seconds,cpp_files" > "$RESULTS"
 

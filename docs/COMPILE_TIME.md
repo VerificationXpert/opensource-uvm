@@ -75,7 +75,7 @@ Not a low hit rate — *zero*. The cache can never help, so every one of those
 
 ### The fix
 
-`scripts/preserve_mtimes.sh` records each generated file's content hash and
+`uvmake/scripts/preserve_mtimes.sh` records each generated file's content hash and
 mtime before verilation and puts the old mtime back afterwards on every file
 whose content did not actually change. Make then sees only the files that
 genuinely differ, the PCH survives untouched, and the ~2000 unaffected objects
@@ -138,7 +138,7 @@ generated UVM sources, serially, with and without it:
 
 2.7× per file, across ~2000 files. Building the PCH itself costs 16 s once.
 So the PCH stays on (`PCH=1`, the default) and the mtime fix is what makes it
-safe. `PCH=0` selects the rules in `mk/model.mk` if it ever needs to be
+safe. `PCH=0` selects the rules in `uvmake/core/model.mk` if it ever needs to be
 bypassed — a compiler with unreliable PCH support, or a machine that cannot
 spare the memory and disk a 288 MB header wants.
 
@@ -171,7 +171,7 @@ mechanism that makes the "generated UVM C++ that did not change" case free.
 ## The shared libraries
 
 Splitting the DPI layer out has a practical payoff beyond build time. While
-bringing up the backdoor backend, `lib/dpi/uvm_hdl_verilator.c` needed a
+bringing up the backdoor backend, `uvmake/dpi/uvm_hdl_verilator.c` needed a
 change to how it resolves HDL paths. Rebuilding it was:
 
 ```console
@@ -195,7 +195,7 @@ built once into `.lib/<verilator-version>-<uvm-flavor>-w<width>/`:
   lists these in `VM_GLOBAL_FAST` and recompiles them into every simulation
   binary; they depend only on the Verilator version.
 - **`libuvmdpi.so`** — the UVM DPI layer, including the Verilator VPI
-  backdoor backend from `lib/dpi/`. Depends only on the UVM version.
+  backdoor backend from `uvmake/dpi/`. Depends only on the UVM version.
 
 `USE_SHARED_LIBS=0` reverts to compiling both into each binary.
 
@@ -259,8 +259,8 @@ all of which this flow does:
 ## Reproducing
 
 ```sh
-./scripts/benchmark.sh -t minimal      # full configuration sweep
-./scripts/benchmark.sh -t minimal -c default
+./uvmake/scripts/benchmark.sh -t minimal      # full configuration sweep
+./uvmake/scripts/benchmark.sh -t minimal -c default
 ```
 
 Results are appended to `build/benchmark.csv`.

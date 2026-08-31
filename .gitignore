@@ -1,14 +1,15 @@
-# Fetched UVM checkouts (see mk/uvm.mk)
-/.uvm/
-
-# Precompiled shared libraries and their objects (see mk/uvm.mk)
-/.lib/
+# uvmake's cache: the fetched UVM checkout and the prebuilt shared libraries.
+# Regenerable; see uvmake/core/uvm.mk. Override with UVMAKE_CACHE.
+.uvmake/
 
 # Per-testbench build output: verilated C++, objects, binaries, logs, waves
 build/
 *.vcd
 *.fst
 *.log
+
+# Python bytecode from the self-tests
+__pycache__/
 
 # Editor / OS noise
 *.swp

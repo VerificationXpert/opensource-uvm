@@ -48,7 +48,7 @@ Moving forward three years of UVM releases is not just a version bump. The
 | `uvm_hdl_polling` | Passive value-change observation of HDL signals. |
 
 Being on a fork also means being on someone else's release cadence. Building
-against upstream means UVM updates are a version bump in `mk/config.mk`, and
+against upstream means UVM updates are a version bump in `uvmake/core/config.mk`, and
 the fork remains selectable (`UVM_FLAVOR=antmicro`) for comparison.
 
 ### 2.2 `-DUVM_NO_DPI` disabled a large part of UVM
@@ -101,11 +101,11 @@ collateral damage, even though **neither of those needs any simulator API**.
 `uvm_regex.cc` is POSIX `<regex.h>`; `uvm_svcmd_dpi.c` needs only
 `vpi_get_vlog_info`, which Verilator implements.
 
-**What this repository now does:** `lib/dpi/uvm_hdl_verilator.c` supplies the
+**What this repository now does:** `uvmake/dpi/uvm_hdl_verilator.c` supplies the
 missing backend on top of Verilator's VPI, and
-`lib/dpi/uvm_dpi_verilator.cpp` replaces upstream's `uvm_dpi.cc` to pull it
+`uvmake/dpi/uvm_dpi_verilator.cpp` replaces upstream's `uvm_dpi.cc` to pull it
 in instead of `uvm_hdl.c`. The UVM tree stays unpatched — everything
-Verilator-specific lives in `lib/dpi/`. DPI is on by default, and
+Verilator-specific lives in `uvmake/dpi/`. DPI is on by default, and
 `tb/minimal` includes a `dpi_smoke_test` that fails if a build has quietly
 regressed to the glob-only path.
 
@@ -171,7 +171,7 @@ its own write-up in [COMPILE_TIME.md](COMPILE_TIME.md).
 
 `-Wno-lint -Wno-style` silences UVM's warnings, and also the DUT's and the
 testbench's. Verilator's `.vlt` configuration files can scope waivers by
-file, so `lib/vlt/uvm_waivers.vlt` waives them for the UVM tree by path and
+file, so `uvmake/vlt/uvm_waivers.vlt` waives them for the UVM tree by path and
 leaves lint fully enabled on user code.
 
 ### 2.7 Constrained randomisation needs an SMT solver, and says so quietly
@@ -198,8 +198,8 @@ nothing at all. In this repository it showed up as `apb_random_test` failing
 on every seed while every other test passed — which looks like a testbench
 bug, not a missing package.
 
-`mk/config.mk` now checks for the solver at parse time and says plainly what
-is wrong, and `scripts/setup_verilator.sh` installs it.
+`uvmake/core/config.mk` now checks for the solver at parse time and says plainly what
+is wrong, and `uvmake/scripts/setup_verilator.sh` installs it.
 
 ### 2.8 There was no verification flow
 
@@ -252,12 +252,15 @@ The measured effect of each is in [COMPILE_TIME.md](COMPILE_TIME.md).
 ## 4. Structure
 
 ```
-mk/config.mk        every knob, in one place
-mk/uvm.mk           UVM checkout; libvltrt.so and libuvmdpi.so
-mk/verilator.mk     verilate / build / run rules shared by all testbenches
-
-lib/dpi/            Verilator VPI backdoor backend + the DPI translation unit
-lib/vlt/            lint waivers scoped to the UVM tree
+uvmake/             the build system, self-contained and project-agnostic
+  uvmake.mk         the single entry point a project includes
+  core/             knobs, toolchain checks, UVM + .so libraries, filelist
+                    expansion, verilate/build/lint, run/waves/coverage
+  dpi/              Verilator VPI backdoor backend + the DPI translation unit
+  vlt/              lint waivers scoped to the UVM tree
+  scripts/          filelist expander, regression runner, log checker,
+                    the incremental-build mtime fix, and self-tests
+  templates/        skeletons for a new project or testbench
 
 tb/minimal/         toolchain smoke test and compile-time benchmark
 tb/apb/             APB3 slave with a full agent, scoreboard, RAL and tests
