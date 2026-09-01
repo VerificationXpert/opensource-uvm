@@ -1,0 +1,113 @@
+name: CI
+
+# A full UVM build is thousands of translation units, so this is staged: the
+# cheap checks run first and fail fast, and the expensive regression only
+# starts once they pass.
+#
+# Feature branches are not built on every push - open a pull request, or use
+# the Run workflow button. Widen the `push` branches below if you would
+# rather have every push checked.
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: >
+          Override the regression list to run this many seeds per test.
+          Leave empty to run the list exactly as written.
+        required: false
+        default: ''
+
+# One run per branch or PR; a new push cancels the previous run rather than
+# paying for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VERILATOR_VERSION: v5.050
+
+jobs:
+  # Seconds, and no Verilator needed: the filelist expander, the regression
+  # list parser and the incremental-build mtime fix are all pure scripts.
+  selftest:
+    name: uvmake self-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./uvmake/scripts/selftest.sh
+
+  # Elaborates and lints every testbench without generating or compiling any
+  # C++ - about 13 seconds per testbench against a 25-minute build, so it
+  # catches most breakage long before the regression job would.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-verilator
+        with:
+          verilator-version: ${{ env.VERILATOR_VERSION }}
+      - name: Lint all testbenches
+        run: make lint LINT_STRICT=1
+
+      # The example project is deliberately outside this repository's own
+      # build, so lint it separately - otherwise it silently rots.
+      # Point it at the cache this job already restored instead of letting
+      # it fetch its own UVM - which is also a live test of UVMAKE_CACHE.
+      - name: Lint the example project
+        run: |
+          make -C examples/acme-soc lint LINT_STRICT=1 \
+            UVMAKE_CACHE="$GITHUB_WORKSPACE/.uvmake"
+
+  regress:
+    name: Regression
+    runs-on: ubuntu-latest
+    needs: [selftest, lint]
+    # The first run is the slow one: it builds Verilator and every
+    # translation unit from cold, and a private-repo runner may only have
+    # 2 vCPU. Once the Verilator and ccache entries are warm this is minutes.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-verilator
+        with:
+          verilator-version: ${{ env.VERILATOR_VERSION }}
+          ccache-key: regress
+          cache-suffix: regress
+
+      # --seeds *replaces* whatever the list says about seeds, so passing it
+      # unconditionally would collapse an entry like 'apb_random_test 1-3'
+      # down to a single seed. Only pass it when the dispatch asked for it.
+      - name: Build and run the regression
+        env:
+          SEEDS: ${{ github.event.inputs.seeds }}
+        run: |
+          make regress \
+            REGRESS_ARGS="--junit build/results.xml ${SEEDS:+--seeds $SEEDS}"
+
+      - name: ccache statistics
+        if: always()
+        run: ccache --show-stats --verbose | head -20
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-results
+          path: build/results.xml
+          if-no-files-found: warn
+
+      # Only on failure, and only the logs - a waveform or an object
+      # directory would be gigabytes.
+      - name: Upload simulation logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-logs
+          path: tb/*/build/logs/**/sim.log
+          if-no-files-found: ignore

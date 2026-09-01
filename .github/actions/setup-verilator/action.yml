@@ -1,0 +1,101 @@
+name: Set up Verilator and UVM
+description: >
+  Install the toolchain uvmake needs and put Verilator on PATH, restoring it
+  from cache when possible. Building Verilator from source takes about ten
+  minutes, so the cache is what makes this practical to run on every PR.
+
+inputs:
+  verilator-version:
+    description: Verilator tag to build, e.g. v5.050
+    required: false
+    default: v5.050
+  ccache-key:
+    description: >
+      Extra discriminator for the ccache entry, so unrelated jobs do not
+      fight over one cache. Leave empty to skip the ccache cache entirely.
+    required: false
+    default: ''
+  cache-suffix:
+    description: >
+      Discriminator for the UVM/shared-library cache. Jobs that build the
+      .so files want their own entry: a cache key that a lint job already
+      saved (UVM only, no libraries) can never be updated by a later job,
+      so the libraries would be rebuilt on every run.
+    required: false
+    default: shared
+
+runs:
+  using: composite
+  steps:
+    - name: Install packages
+      shell: bash
+      # z3 is not optional: Verilator hands SystemVerilog constraints to an
+      # external SMT solver, and without one every constrained randomize()
+      # returns 0 - so constrained-random tests pass having randomised
+      # nothing. liblz4/libzstd are needed by the FST trace back end.
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          git perl python3 make autoconf g++ flex bison ccache \
+          libfl-dev zlib1g-dev liblz4-dev libzstd-dev help2man numactl z3
+
+    - name: Restore Verilator
+      id: cache-verilator
+      uses: actions/cache@v4
+      with:
+        # Installed under HOME so no step needs root, which keeps cache
+        # save/restore straightforward.
+        path: ~/verilator
+        key: verilator-${{ runner.os }}-${{ inputs.verilator-version }}
+
+    - name: Build Verilator
+      if: steps.cache-verilator.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        SKIP_DEPS=1 \
+        PREFIX="$HOME/verilator" \
+        VERILATOR_VERSION="${{ inputs.verilator-version }}" \
+        JOBS="$(nproc)" \
+          ./uvmake/scripts/setup_verilator.sh
+
+    - name: Put Verilator on PATH
+      shell: bash
+      run: echo "$HOME/verilator/bin" >> "$GITHUB_PATH"
+
+    # The UVM checkout and the prebuilt libvltrt.so/libuvmdpi.so. Neither
+    # changes unless Verilator, the UVM revision, or the DPI sources do.
+    - name: Restore UVM and shared libraries
+      uses: actions/cache@v4
+      with:
+        path: .uvmake
+        key: >-
+          uvmake-${{ runner.os }}-${{ inputs.verilator-version }}-${{ inputs.cache-suffix }}-${{
+          hashFiles('uvmake/core/uvm.mk', 'uvmake/core/config.mk', 'uvmake/dpi/**') }}
+        restore-keys: |
+          uvmake-${{ runner.os }}-${{ inputs.verilator-version }}-${{ inputs.cache-suffix }}-
+          uvmake-${{ runner.os }}-${{ inputs.verilator-version }}-
+
+    # Without this every run recompiles ~2000 translation units from cold.
+    # With it, a run whose generated C++ is unchanged is mostly cache hits.
+    - name: Restore ccache
+      if: inputs.ccache-key != ''
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: >-
+          ccache-${{ runner.os }}-${{ inputs.ccache-key }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ runner.os }}-${{ inputs.ccache-key }}-
+
+    - name: Configure ccache
+      if: inputs.ccache-key != ''
+      shell: bash
+      # A built testbench is ~1.5 GB of objects; two of them plus headroom
+      # fits comfortably under the 10 GB GitHub allows a repository.
+      run: |
+        ccache --set-config max_size=4G
+        ccache --zero-stats
+
+    - name: Report toolchain
+      shell: bash
+      run: make check-env

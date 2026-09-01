@@ -163,32 +163,39 @@ which naive greps flag as a failure.
 
 ## In CI
 
-The regression runner exits non-zero on any failure and can emit JUnit XML,
-so a CI job is short. This is a recipe rather than a shipped workflow file -
-a full UVM build is 20+ minutes of runner time, so it is your call whether
-and how to run it.
+`.github/workflows/ci.yml` in this repository is a working example. It is
+staged so the cheap checks fail fast:
 
-```yaml
-- run: sudo ./uvmake/scripts/setup_verilator.sh      # includes z3
-- run: ./uvmake/scripts/selftest.sh                  # seconds
-- run: make lint                                     # seconds; catches most breakage
-- run: make regress REGRESS_ARGS='--junit results.xml'
-- uses: actions/upload-artifact@v4
-  if: always()
-  with: { name: regression, path: results.xml }
-```
+| Job | What | Typical |
+|---|---|---|
+| `selftest` | `uvmake/scripts/selftest.sh` - no Verilator needed | seconds |
+| `lint` | `make lint LINT_STRICT=1` on every testbench | ~1 min warm |
+| `regress` | build and run the regression, JUnit uploaded | minutes warm |
 
-Two things make this cheap enough to be worth doing:
+The regression only starts once the first two pass, so a typo costs seconds
+rather than an hour.
 
-- `make lint` elaborates the whole testbench without generating or compiling
-  any C++, so it catches most breakage in seconds rather than half an hour.
-  Run it as a fast gate before the build stage.
-- Cache `$(UVMAKE_CACHE)` (`.uvmake/` by default) between runs. It holds the
-  UVM checkout and the prebuilt shared libraries, neither of which changes
-  unless you move Verilator or UVM version. Caching `~/.cache/ccache` as well
-  is what makes a rebuild after a small change cheap.
+Three things make it affordable:
 
-## Requirements
+- **`make lint` as the gate.** It elaborates the whole testbench without
+  generating or compiling any C++, so it catches most breakage in seconds.
+- **Cache Verilator.** Building it from source is about ten minutes; cached
+  on its version tag it restores in seconds.
+- **Cache `UVMAKE_CACHE` and ccache.** The former holds the UVM checkout and
+  the prebuilt shared libraries; the latter is what stops every run
+  recompiling ~2000 translation units from cold. Budget ~4 GB for ccache
+  (a built testbench is ~1.5 GB of objects).
+
+Be aware that the **first** run is the expensive one - it builds Verilator
+and everything else from nothing, which on a 2-vCPU runner can approach two
+hours. Later runs reuse all three caches.
+
+The workflow triggers on pull requests and on pushes to `master`/`main`, not
+on every push to a feature branch. Widen the `push:` branches if you would
+rather have everything checked, or use the *Run workflow* button, which also
+accepts a seed count for a deeper sweep.
+
+## Requirements## Requirements
 
 - Verilator 5.040+ (5.050 is what this is developed against)
 - **`z3`**, or another SMT solver via `VERILATOR_SOLVER`. Verilator does not

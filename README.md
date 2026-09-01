@@ -1,5 +1,7 @@
 # Open-Source UVM with Verilator
 
+[![CI](https://github.com/VerificationXpert/opensource-uvm/actions/workflows/ci.yml/badge.svg)](https://github.com/VerificationXpert/opensource-uvm/actions/workflows/ci.yml)
+
 A production-shaped UVM verification flow built entirely on open-source
 tooling: **Verilator 5.050** and **unpatched Accellera UVM 2020.3.1
 (IEEE 1800.2-2020)**.

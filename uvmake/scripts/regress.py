@@ -188,12 +188,17 @@ def main():
         return 2
 
     if args.seeds > 0:
-        expanded = []
+        # Replace whatever the list said about seeds, rather than multiplying
+        # it: applying --seeds 5 to an entry that already reads '1-3' should
+        # give five runs, not fifteen with seeds 1..7 repeated.
+        collapsed = {}
         for run in runs:
-            for index in range(args.seeds):
-                expanded.append(Run(run.testbench, run.test, run.seed + index,
-                                    list(run.overrides)))
-        runs = expanded
+            key = (run.testbench, run.test)
+            if key not in collapsed:
+                collapsed[key] = run
+        runs = [Run(run.testbench, run.test, run.seed + index, list(run.overrides))
+                for run in collapsed.values()
+                for index in range(args.seeds)]
 
     if not runs:
         print("error: regression list is empty", file=sys.stderr)
