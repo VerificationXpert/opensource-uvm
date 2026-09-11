@@ -98,6 +98,7 @@ help:
 	@echo "  make regress [LIST=...]          run a regression list in parallel"
 	@echo "  make lint                        lint every testbench (fast)"
 	@echo "  make check-env                   report the detected toolchain"
+	@echo "  make print-patches               show the local UVM patch series"
 	@echo "  make clean | distclean"
 	@echo
 	@echo "Knobs: BUILD_MODE=fast|opt|debug  TRACE=none|vcd|fst  SEED=<n>"

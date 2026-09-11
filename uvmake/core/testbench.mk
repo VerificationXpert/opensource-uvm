@@ -35,7 +35,8 @@ help:
 	@echo "  make coverage-report         merge and annotate collected coverage"
 	@echo "  make clean"
 	@echo
-	@echo "  make print-config | print-filelist | print-objdir | check-env"
+	@echo "  make print-config | print-filelist | print-objdir | print-patches"
+	@echo "  make check-env"
 	@echo
 	@echo "Knobs: BUILD_MODE=fast|opt|debug  TRACE=none|vcd|fst  SEED=<n>"
 	@echo "       UVM_DPI=0|1  COVERAGE=0|1  USE_SHARED_LIBS=0|1  PCH=0|1"

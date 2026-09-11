@@ -58,6 +58,15 @@ UVM_DIR  ?= $(UVMAKE_CACHE)/uvm/$(UVM_FLAVOR)
 UVM_HOME ?= $(UVM_DIR)
 UVM_SRC  ?= $(UVM_HOME)/src
 
+# Where to look for a local patch series to apply to the UVM checkout after
+# fetching it. Patches apply in lexicographic order with `git apply -p1`, so
+# name them 0010-*.patch. See uvmake/patches/README.md.
+#
+# uvmake ships none: upstream UVM needs no patches for Verilator today. The
+# mechanism is here so that when it does, the fix can live against a pinned
+# revision instead of in a fork.
+UVM_PATCH_DIRS ?= $(UVMAKE_ROOT)/patches/$(UVM_FLAVOR) $(PROJECT_ROOT)/uvm-patches
+
 # Enable the UVM DPI layer. Turning it off costs real functionality: regular
 # expressions degrade to glob matching, the command-line processor loses
 # +uvm_set_*, and uvm_reg backdoor access disappears. See uvmake/dpi/.

@@ -118,6 +118,79 @@ PY
 [[ $? -eq 0 ]] || fail=1
 
 # ---------------------------------------------------------------------------
+echo "apply_patches:"
+
+pd="$WORK/patches"; mkdir -p "$pd"
+
+make_kit() {  # <dir> [--git]
+  rm -rf "$1"; mkdir -p "$1/src/base"
+  printf 'line one\nline two\nline three\n' > "$1/src/base/thing.svh"
+  if [[ ${2:-} == --git ]]; then
+    git -C "$1" init -q
+    git -C "$1" -c user.name=t -c user.email=t@t add -A >/dev/null
+    git -C "$1" -c user.name=t -c user.email=t@t commit -qm base >/dev/null
+  fi
+}
+
+cat > "$pd/0010-ok.patch" <<'PATCH'
+diff --git a/src/base/thing.svh b/src/base/thing.svh
+--- a/src/base/thing.svh
++++ b/src/base/thing.svh
+@@ -1,3 +1,4 @@
+ line one
++PATCHED
+ line two
+ line three
+PATCH
+
+# A kit that is its own git repo (the fetched case).
+kit="$WORK/kit-git"; make_kit "$kit" --git
+"$HERE/apply_patches.sh" "$kit" "$pd" >/dev/null 2>&1
+check "applies to a git-repo kit" "1" "$(grep -c PATCHED "$kit/src/base/thing.svh")"
+
+# A kit with no git of its own, sitting inside another repository. git apply
+# resolves against the *enclosing* work tree, so without the fix this
+# reported success while changing nothing.
+outer="$WORK/outer"; mkdir -p "$outer"
+git -C "$outer" init -q
+kit2="$outer/nested-kit"; make_kit "$kit2"
+"$HERE/apply_patches.sh" "$kit2" "$pd" >/dev/null 2>&1
+check "applies inside an enclosing repo" "1" "$(grep -c PATCHED "$kit2/src/base/thing.svh")"
+check "enclosing repo untouched" "0" "$(ls "$outer/src" 2>/dev/null | wc -l)"
+
+# Ordering: patches apply lowest-numbered first.
+cat > "$pd/0020-second.patch" <<'PATCH'
+diff --git a/src/base/thing.svh b/src/base/thing.svh
+--- a/src/base/thing.svh
++++ b/src/base/thing.svh
+@@ -1,4 +1,5 @@
+ line one
+ PATCHED
++SECOND
+ line two
+ line three
+PATCH
+kit3="$WORK/kit-order"; make_kit "$kit3" --git
+"$HERE/apply_patches.sh" "$kit3" "$pd" >/dev/null 2>&1
+check "series applies in order" "PATCHED SECOND" \
+      "$(sed -n '2p;3p' "$kit3/src/base/thing.svh" | tr '\n' ' ' | sed 's/ $//')"
+rm -f "$pd/0020-second.patch"
+
+# A patch whose context is wrong must fail, and must not half-apply.
+bad="$WORK/bad"; mkdir -p "$bad"
+sed 's/^ line one/ NOT THE REAL CONTEXT/' "$pd/0010-ok.patch" > "$bad/0010-bad.patch"
+kit4="$WORK/kit-bad"; make_kit "$kit4" --git
+"$HERE/apply_patches.sh" "$kit4" "$bad" >/dev/null 2>&1
+check "bad patch fails"            "1" "$?"
+check "bad patch leaves tree clean" "0" "$(grep -c PATCHED "$kit4/src/base/thing.svh")"
+
+# No patches at all is a silent success, not an error.
+empty="$WORK/empty"; mkdir -p "$empty"
+kit5="$WORK/kit-none"; make_kit "$kit5" --git
+"$HERE/apply_patches.sh" "$kit5" "$empty" >/dev/null 2>&1
+check "empty series succeeds" "0" "$?"
+
+# ---------------------------------------------------------------------------
 echo "preserve_mtimes:"
 "$HERE/test_preserve_mtimes.sh" 2>&1 | sed -n 's/^  \(ok\|FAIL\)/  \1/p'
 "$HERE/test_preserve_mtimes.sh" >/dev/null 2>&1 || fail=1

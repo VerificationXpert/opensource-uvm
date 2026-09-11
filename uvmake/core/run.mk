@@ -18,14 +18,32 @@ SIM_PLUSARGS = +UVM_TESTNAME=$(TEST) \
                $(if $(filter 1,$(COVERAGE)),+verilator+coverage+file+coverage.dat) \
                $(PLUSARGS)
 
-.PHONY: run waves coverage coverage-report
+.PHONY: run run-only waves coverage coverage-report
 
+# Sequenced through sub-makes rather than written as 'run: build run-only',
+# because prerequisites of one target may run concurrently under -j and the
+# simulation must not start before the build finishes. Command-line variables
+# (TEST, SEED, ...) reach the sub-makes through MAKEFLAGS.
+run:
+	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory run-only
+
+# The simulation half of 'run', without the build dependency.
+#
+# This exists for the regression runner, which builds each testbench once,
+# serially, and then fans out. If those parallel runs each depended on
+# 'build', every one of them would re-enter the sub-make on the same object
+# directory at once. When the build happens to be up to date that is a
+# harmless no-op - which is why it is easy to miss - but on a cold tree (a
+# fresh CI checkout, or after a UVM re-fetch) four concurrent makes race on
+# the same objects and never converge.
+#
 # Each run gets its own directory, so waves, coverage and the log from one
 # seed never overwrite another's - which is what makes a seed sweep usable.
-run: build
-ifeq ($(strip $(TEST)),)
-	$(error TEST is not set. Try: make run TEST=<uvm_test_name>)
-endif
+run-only:
+	@[ -n "$(strip $(TEST))" ] || { \
+	  echo "error: TEST is not set. Try: make run TEST=<uvm_test_name>" >&2; \
+	  exit 1; }
 	@mkdir -p $(RUN_DIR)
 	@echo "[run]      $(TEST) seed=$(SEED)"
 	@cd $(RUN_DIR) && $(abspath $(SIM_BIN)) $(SIM_PLUSARGS) $(SIM_ARGS) 2>&1 \

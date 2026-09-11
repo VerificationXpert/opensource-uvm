@@ -48,8 +48,15 @@ Moving forward three years of UVM releases is not just a version bump. The
 | `uvm_hdl_polling` | Passive value-change observation of HDL signals. |
 
 Being on a fork also means being on someone else's release cadence. Building
-against upstream means UVM updates are a version bump in `uvmake/core/config.mk`, and
-the fork remains selectable (`UVM_FLAVOR=antmicro`) for comparison.
+against upstream means UVM updates are a version bump in
+`uvmake/core/config.mk`, and the fork remains selectable
+(`UVM_FLAVOR=antmicro`) for comparison.
+
+This is not a bet that upstream will never need fixing. `uvmake/patches/`
+carries a local patch series applied to the fetched kit, so a future
+Verilator or UVM incompatibility can be handled with a patch against a
+pinned revision rather than by forking the library again — which is the trap
+the antmicro fork represents. There are no patches today.
 
 ### 2.2 `-DUVM_NO_DPI` disabled a large part of UVM
 

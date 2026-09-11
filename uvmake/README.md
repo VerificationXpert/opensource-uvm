@@ -139,6 +139,40 @@ All settable per-invocation (`make run BUILD_MODE=opt`), in
 Point several projects at one `UVMAKE_CACHE` and they share the UVM checkout
 and the prebuilt libraries.
 
+## Local UVM patches
+
+Upstream UVM is used unmodified — the Verilator-specific work lives outside
+the library in `uvmake/dpi/`, which is what keeps a UVM version bump to a
+one-line change. But when a patch *is* unavoidable (a Verilator regression, a
+UVM release using a construct it cannot yet handle, a site-specific fix),
+carrying it locally against a pinned revision beats forking the library:
+
+```
+uvmake/patches/accellera/0010-short-description.patch   # ships with uvmake
+$(PROJECT_ROOT)/uvm-patches/0010-site-fix.patch          # your project's own
+```
+
+Applied in lexicographic order with `git apply -p1` from the root of the kit.
+Cut one by editing the fetched tree and running `git diff` inside it. Both
+locations are searched by default; `UVM_PATCH_DIRS` overrides.
+
+The properties that make this safe to rely on:
+
+- **The series is part of the checkout's identity.** Its content hash goes
+  into the stamp filename, `UVM_ID` and the shared-library cache tag, so
+  editing, adding or removing a patch re-fetches a clean tree and re-applies
+  the whole series. Nothing is ever applied on top of an already-patched
+  tree, and a patched and an unpatched UVM never share a `libuvmdpi.so`.
+- **A patch that does not apply fails the build**, naming the patch and
+  showing git's objection. It is checked before anything is written, so a
+  bad series cannot half-apply — and every applied patch is verified to be
+  present afterwards, so one cannot "succeed" without changing the tree.
+- **A `UVM_HOME` you supplied is never modified.** It is usually a shared,
+  read-only site install, so it is copied into the cache and the copy is
+  patched. `git diff` inside that copy shows exactly what the series did.
+
+See `uvmake/patches/README.md`.
+
 ## Regressions
 
 `regress/smoke.list`:
@@ -155,9 +189,11 @@ make regress
 make regress REGRESS_JOBS=16 REGRESS_ARGS='--seeds 20 --junit results.xml'
 ```
 
-Runs execute in parallel; each gets its own directory under
-`build/logs/<test>-<seed>/`, so waves and coverage from one seed never
-overwrite another's. Pass/fail comes from UVM's own report counts, not from
+Each testbench is built once, serially, and only then do the runs fan out —
+they use a `run-only` target that deliberately does not depend on `build`,
+so parallel runs cannot re-enter the same object directory and race on it.
+Each run gets its own directory under `build/logs/<test>-<seed>/`, so waves
+and coverage from one seed never overwrite another's. Pass/fail comes from UVM's own report counts, not from
 grepping for `UVM_ERROR` — a clean run prints the line `UVM_ERROR :    0`,
 which naive greps flag as a failure.
 

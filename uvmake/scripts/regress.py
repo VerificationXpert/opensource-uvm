@@ -109,7 +109,10 @@ def execute(run, tb_dirs, common, quiet):
         return Result(run, False, 0.0,
                       f"no testbench '{run.testbench}' under {', '.join(tb_dirs)}", "")
 
-    command = ["make", "--no-print-directory", "-C", tb_dir, "run",
+    # 'run-only', not 'run': the testbenches were already built serially
+    # above, and letting each parallel run re-enter the build would have them
+    # race on one object directory.
+    command = ["make", "--no-print-directory", "-C", tb_dir, "run-only",
                f"TEST={run.test}", f"SEED={run.seed}"] + common + run.overrides
 
     start = time.monotonic()
