@@ -1,0 +1,9 @@
+# Regression list.
+#
+#   <testbench> <test> [seed | first-last | *] [VAR=VALUE ...]
+#
+# '*' picks a random seed and reports it, so a failure stays reproducible.
+# Omitted seed means 1.
+
+my_tb  my_base_test    1
+my_tb  my_random_test  1-10

@@ -1,0 +1,17 @@
+# Regression list.
+#
+#   <testbench> <test> [seed | first-last | *] [VAR=VALUE ...]
+#
+# A range runs the test once per seed; '*' picks a random one and reports it
+# so a failure stays reproducible. Omitted seed means 1.
+#
+#   make regress
+#   make regress REGRESS_JOBS=16 REGRESS_ARGS='--seeds 10 --junit results.xml'
+
+minimal  base_test            1
+minimal  dpi_smoke_test       1
+
+apb      apb_rw_test          1
+apb      apb_random_test      1-3
+apb      apb_reg_test         1
+apb      apb_backdoor_test    1

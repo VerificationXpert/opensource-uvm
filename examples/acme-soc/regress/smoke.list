@@ -1,0 +1,3 @@
+# <testbench> <test> [seed|range] [VAR=VALUE ...]
+fifo_tb  fifo_smoke_test   1
+fifo_tb  fifo_stress_test  1-3
